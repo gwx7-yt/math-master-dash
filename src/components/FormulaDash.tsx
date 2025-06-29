@@ -218,8 +218,8 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
             <p>🎯 Read the question carefully</p>
             <p>⏱️ Wait for answer blocks to appear</p>
             <p>🎮 Use ↑↓ arrows or spacebar to move</p>
-            <p>✅ Collect GREEN (correct) formulas</p>
-            <p>❌ Avoid RED (wrong) formulas</p>
+            <p>✅ Collect the correct formulas</p>
+            <p>❌ Avoid the wrong formulas</p>
           </div>
           <button
             onClick={startGame}
@@ -357,11 +357,7 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
         {formulaBlocks.map(block => (
           <div
             key={block.id}
-            className={`absolute p-6 rounded-3xl shadow-2xl text-lg font-mono text-white transition-all duration-100 border-4 ${
-              block.isCorrect 
-                ? 'bg-gradient-to-r from-green-500 to-emerald-600 border-green-300 shadow-green-400/50' 
-                : 'bg-gradient-to-r from-red-500 to-pink-600 border-red-300 shadow-red-400/50'
-            }`}
+            className="absolute p-6 rounded-3xl shadow-2xl text-lg font-mono text-white transition-all duration-100 border-4 bg-gradient-to-r from-blue-500 to-purple-600 border-blue-300 shadow-blue-400/50"
             style={{
               left: `${block.x}%`,
               top: `${block.y}%`,
@@ -373,11 +369,6 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
             <div className="text-center font-bold break-words text-xl leading-relaxed">
               {block.formula}
             </div>
-            {block.isCorrect && (
-              <div className="absolute -top-3 -right-3 w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center text-lg font-bold border-2 border-white">
-                ✓
-              </div>
-            )}
           </div>
         ))}
       </div>
@@ -386,7 +377,7 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
       <div className="absolute bottom-6 left-4 right-4 text-center text-white z-10">
         <div className="bg-white/15 backdrop-blur-lg rounded-2xl p-4 border border-white/20">
           <div className="text-lg font-medium">
-            Use ↑↓ arrows, WASD, or SPACEBAR to move • Collect GREEN formulas • Avoid RED ones!
+            Use ↑↓ arrows, WASD, or SPACEBAR to move • Collect the correct formulas • Avoid the wrong ones!
           </div>
           <div className="text-sm mt-2 opacity-75">
             Take your time to read the question - blocks appear after 3 seconds!
