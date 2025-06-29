@@ -13,50 +13,55 @@ interface FormulaBlock {
   isCorrect: boolean;
   x: number;
   y: number;
+  width: number;
+  height: number;
 }
 
 const FormulaDash = ({ onBack }: FormulaDashProps) => {
   const [gameState, setGameState] = useState<'playing' | 'won' | 'lost'>('playing');
-  const [playerY, setPlayerY] = useState(50); // Percentage from top
+  const [playerY, setPlayerY] = useState(50);
   const [currentQuestion, setCurrentQuestion] = useState<Formula | null>(null);
   const [formulaBlocks, setFormulaBlocks] = useState<FormulaBlock[]>([]);
   const [score, setScore] = useState(0);
-  const [gameSpeed, setGameSpeed] = useState(2);
+  const [gameSpeed, setGameSpeed] = useState(1.5);
+  const [blocksClearedThisRound, setBlocksClearedThisRound] = useState(false);
 
-  // Generate a new question
   const generateQuestion = useCallback(() => {
     const randomFormula = formulas[Math.floor(Math.random() * formulas.length)];
     setCurrentQuestion(randomFormula);
     
-    // Create formula blocks
     const blocks: FormulaBlock[] = [];
     const correctAnswer = randomFormula.options[randomFormula.correct];
     const wrongAnswers = randomFormula.options.filter((_, index) => index !== randomFormula.correct);
     
-    // Add correct answer
+    // Add correct answer block
     blocks.push({
       id: 1,
       formula: correctAnswer,
       isCorrect: true,
-      x: 100,
-      y: 20 + Math.random() * 60
+      x: 120,
+      y: 30 + Math.random() * 40,
+      width: Math.max(200, correctAnswer.length * 8),
+      height: 60
     });
     
-    // Add wrong answers
+    // Add wrong answer blocks with spacing
     wrongAnswers.forEach((answer, index) => {
       blocks.push({
         id: index + 2,
         formula: answer,
         isCorrect: false,
-        x: 100 + (index + 1) * 150,
-        y: 20 + Math.random() * 60
+        x: 120 + (index + 1) * 300,
+        y: 30 + Math.random() * 40,
+        width: Math.max(200, answer.length * 8),
+        height: 60
       });
     });
     
     setFormulaBlocks(blocks);
+    setBlocksClearedThisRound(false);
   }, []);
 
-  // Initialize game
   useEffect(() => {
     generateQuestion();
   }, [generateQuestion]);
@@ -66,16 +71,26 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
     if (gameState !== 'playing') return;
 
     const gameLoop = setInterval(() => {
-      setFormulaBlocks(blocks => 
-        blocks.map(block => ({
+      setFormulaBlocks(blocks => {
+        const updatedBlocks = blocks.map(block => ({
           ...block,
           x: block.x - gameSpeed
-        })).filter(block => block.x > -20)
-      );
-    }, 16); // 60 FPS
+        })).filter(block => block.x + block.width > -50);
+
+        // Check if all blocks have moved off screen without collision
+        if (updatedBlocks.length === 0 && !blocksClearedThisRound) {
+          // Generate new question
+          setTimeout(() => {
+            generateQuestion();
+          }, 100);
+        }
+
+        return updatedBlocks;
+      });
+    }, 16);
 
     return () => clearInterval(gameLoop);
-  }, [gameState, gameSpeed]);
+  }, [gameState, gameSpeed, generateQuestion, blocksClearedThisRound]);
 
   // Handle keyboard input
   useEffect(() => {
@@ -85,11 +100,11 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
       switch (event.key) {
         case 'ArrowUp':
           event.preventDefault();
-          setPlayerY(prev => Math.max(10, prev - 5));
+          setPlayerY(prev => Math.max(5, prev - 8));
           break;
         case 'ArrowDown':
           event.preventDefault();
-          setPlayerY(prev => Math.min(85, prev + 5));
+          setPlayerY(prev => Math.min(80, prev + 8));
           break;
       }
     };
@@ -100,48 +115,56 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
 
   // Collision detection
   useEffect(() => {
-    if (gameState !== 'playing') return;
+    if (gameState !== 'playing' || blocksClearedThisRound) return;
+
+    const playerLeft = 10;
+    const playerRight = 18;
+    const playerTop = playerY;
+    const playerBottom = playerY + 8;
 
     formulaBlocks.forEach(block => {
-      const playerLeft = 10;
-      const playerRight = 15;
-      const playerTop = playerY;
-      const playerBottom = playerY + 10;
-
       const blockLeft = block.x;
-      const blockRight = block.x + 15;
+      const blockRight = block.x + (block.width / 5); // Convert percentage-based width
       const blockTop = block.y;
-      const blockBottom = block.y + 8;
+      const blockBottom = block.y + (block.height / 5); // Convert percentage-based height
 
-      // Check collision
+      // Check collision with more precise detection
       if (
         playerRight > blockLeft &&
         playerLeft < blockRight &&
         playerBottom > blockTop &&
-        playerTop < blockBottom
+        playerTop < blockBottom &&
+        block.x < 25 // Only check collision when block is near the player
       ) {
+        setBlocksClearedThisRound(true);
+        
         if (block.isCorrect) {
-          setGameState('won');
           setScore(prev => prev + 1);
+          setGameSpeed(prev => prev + 0.3);
+          setTimeout(() => {
+            generateQuestion();
+          }, 1000);
         } else {
           setGameState('lost');
         }
       }
     });
-  }, [formulaBlocks, playerY, gameState]);
+  }, [formulaBlocks, playerY, gameState, blocksClearedThisRound, generateQuestion]);
 
   const handleRestart = () => {
     setGameState('playing');
     setPlayerY(50);
+    setBlocksClearedThisRound(false);
     generateQuestion();
-    setGameSpeed(prev => prev + 0.2); // Increase difficulty
+    setGameSpeed(prev => prev + 0.2);
   };
 
   const handleNewGame = () => {
     setGameState('playing');
     setPlayerY(50);
     setScore(0);
-    setGameSpeed(2);
+    setGameSpeed(1.5);
+    setBlocksClearedThisRound(false);
     generateQuestion();
   };
 
@@ -188,7 +211,7 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
             </button>
             <button
               onClick={onBack}
-              className="w-white/20 hover:bg-white/30 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-200 flex items-center justify-center space-x-2"
+              className="w-full bg-white/20 hover:bg-white/30 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-200 flex items-center justify-center space-x-2"
             >
               <ArrowLeft className="w-5 h-5" />
               <span>Back to Menu</span>
@@ -254,7 +277,7 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
         {formulaBlocks.map(block => (
           <div
             key={block.id}
-            className={`absolute p-3 rounded-xl shadow-lg text-sm font-mono text-white max-w-xs transition-all duration-100 ${
+            className={`absolute p-3 rounded-xl shadow-lg text-xs font-mono text-white transition-all duration-100 ${
               block.isCorrect 
                 ? 'bg-gradient-to-r from-green-500 to-emerald-500' 
                 : 'bg-gradient-to-r from-red-500 to-pink-500'
@@ -262,10 +285,14 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
             style={{
               left: `${block.x}%`,
               top: `${block.y}%`,
-              transform: 'translateY(-50%)'
+              transform: 'translateY(-50%)',
+              maxWidth: '300px',
+              minWidth: '180px'
             }}
           >
-            {block.formula}
+            <div className="break-words text-center">
+              {block.formula}
+            </div>
           </div>
         ))}
       </div>
