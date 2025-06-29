@@ -27,7 +27,7 @@ const PracticeMode = ({ onBack }: PracticeModeProps) => {
     setShowResult(true);
     
     if (answerIndex === shuffledFormulas[currentQuestion]?.correct) {
-      setScore(score + 1);
+      setScore(prev => prev + 1);
     }
   };
 
