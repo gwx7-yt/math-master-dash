@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, RotateCcw } from 'lucide-react';
+import { ArrowLeft, RotateCcw, Star, Zap } from 'lucide-react';
 import { formulas, Formula } from '../data/formulas';
 
 interface FormulaDashProps {
@@ -13,8 +13,7 @@ interface FormulaBlock {
   isCorrect: boolean;
   x: number;
   y: number;
-  width: number;
-  height: number;
+  speed: number;
 }
 
 const FormulaDash = ({ onBack }: FormulaDashProps) => {
@@ -23,88 +22,141 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
   const [currentQuestion, setCurrentQuestion] = useState<Formula | null>(null);
   const [formulaBlocks, setFormulaBlocks] = useState<FormulaBlock[]>([]);
   const [score, setScore] = useState(0);
-  const [gameSpeed, setGameSpeed] = useState(1.5);
-  const [blocksClearedThisRound, setBlocksClearedThisRound] = useState(false);
+  const [lives, setLives] = useState(3);
+  const [gameSpeed, setGameSpeed] = useState(2);
+  const [nextBlockId, setNextBlockId] = useState(1);
 
+  // Generate new question and blocks
   const generateQuestion = useCallback(() => {
     const randomFormula = formulas[Math.floor(Math.random() * formulas.length)];
     setCurrentQuestion(randomFormula);
     
     const blocks: FormulaBlock[] = [];
     const correctAnswer = randomFormula.options[randomFormula.correct];
-    const wrongAnswers = randomFormula.options.filter((_, index) => index !== randomFormula.correct);
     
-    // Add correct answer block
+    // Add correct answer block at random height
     blocks.push({
-      id: 1,
+      id: nextBlockId,
       formula: correctAnswer,
       isCorrect: true,
       x: 120,
-      y: 30 + Math.random() * 40,
-      width: Math.max(200, correctAnswer.length * 8),
-      height: 60
+      y: 20 + Math.random() * 60,
+      speed: gameSpeed
     });
-    
-    // Add wrong answer blocks with spacing
-    wrongAnswers.forEach((answer, index) => {
+
+    // Add 2 wrong answer blocks with proper spacing
+    const wrongAnswers = randomFormula.options.filter((_, index) => index !== randomFormula.correct);
+    wrongAnswers.slice(0, 2).forEach((answer, index) => {
       blocks.push({
-        id: index + 2,
+        id: nextBlockId + index + 1,
         formula: answer,
         isCorrect: false,
-        x: 120 + (index + 1) * 300,
-        y: 30 + Math.random() * 40,
-        width: Math.max(200, answer.length * 8),
-        height: 60
+        x: 120 + (index + 1) * 50 + Math.random() * 30,
+        y: 20 + Math.random() * 60,
+        speed: gameSpeed
       });
     });
     
     setFormulaBlocks(blocks);
-    setBlocksClearedThisRound(false);
-  }, []);
+    setNextBlockId(prev => prev + 4);
+  }, [gameSpeed, nextBlockId]);
 
+  // Initialize game
   useEffect(() => {
-    generateQuestion();
-  }, [generateQuestion]);
+    if (gameState === 'playing') {
+      generateQuestion();
+    }
+  }, [generateQuestion, gameState]);
 
-  // Game loop
+  // Game loop - move blocks and handle collisions
   useEffect(() => {
     if (gameState !== 'playing') return;
 
     const gameLoop = setInterval(() => {
-      setFormulaBlocks(blocks => {
-        const updatedBlocks = blocks.map(block => ({
+      setFormulaBlocks(prevBlocks => {
+        const updatedBlocks = prevBlocks.map(block => ({
           ...block,
-          x: block.x - gameSpeed
-        })).filter(block => block.x + block.width > -50);
+          x: block.x - block.speed
+        }));
 
-        // Check if all blocks have moved off screen without collision
-        if (updatedBlocks.length === 0 && !blocksClearedThisRound) {
-          // Generate new question
-          setTimeout(() => {
-            generateQuestion();
-          }, 100);
+        // Check for collisions
+        const playerLeft = 8;
+        const playerRight = 18;
+        const playerTop = playerY - 4;
+        const playerBottom = playerY + 4;
+
+        let collision = false;
+        let correctHit = false;
+
+        updatedBlocks.forEach(block => {
+          const blockLeft = block.x;
+          const blockRight = block.x + 25;
+          const blockTop = block.y - 3;
+          const blockBottom = block.y + 3;
+
+          // Check collision
+          if (
+            playerRight > blockLeft &&
+            playerLeft < blockRight &&
+            playerBottom > blockTop &&
+            playerTop < blockBottom &&
+            !collision
+          ) {
+            collision = true;
+            if (block.isCorrect) {
+              correctHit = true;
+            }
+          }
+        });
+
+        if (collision) {
+          if (correctHit) {
+            setScore(prev => prev + 1);
+            setGameSpeed(prev => prev + 0.3);
+            setTimeout(() => generateQuestion(), 500);
+            return [];
+          } else {
+            setLives(prev => {
+              const newLives = prev - 1;
+              if (newLives <= 0) {
+                setGameState('lost');
+              }
+              return newLives;
+            });
+            setTimeout(() => generateQuestion(), 1000);
+            return [];
+          }
         }
 
-        return updatedBlocks;
+        // Remove blocks that are off screen and generate new ones
+        const visibleBlocks = updatedBlocks.filter(block => block.x > -30);
+        if (visibleBlocks.length === 0) {
+          setTimeout(() => generateQuestion(), 500);
+        }
+
+        return visibleBlocks;
       });
     }, 16);
 
     return () => clearInterval(gameLoop);
-  }, [gameState, gameSpeed, generateQuestion, blocksClearedThisRound]);
+  }, [gameState, playerY, gameSpeed, generateQuestion]);
 
   // Handle keyboard input
   useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
       if (gameState !== 'playing') return;
 
+      event.preventDefault();
       switch (event.key) {
         case 'ArrowUp':
-          event.preventDefault();
-          setPlayerY(prev => Math.max(5, prev - 8));
+        case 'w':
+        case 'W':
+          setPlayerY(prev => Math.max(10, prev - 5));
           break;
         case 'ArrowDown':
-          event.preventDefault();
-          setPlayerY(prev => Math.min(80, prev + 8));
+        case 's':
+        case 'S':
+          setPlayerY(prev => Math.min(85, prev + 5));
           break;
       }
     };
@@ -113,97 +165,32 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [gameState]);
 
-  // Collision detection
-  useEffect(() => {
-    if (gameState !== 'playing' || blocksClearedThisRound) return;
-
-    const playerLeft = 10;
-    const playerRight = 18;
-    const playerTop = playerY;
-    const playerBottom = playerY + 8;
-
-    formulaBlocks.forEach(block => {
-      const blockLeft = block.x;
-      const blockRight = block.x + (block.width / 5); // Convert percentage-based width
-      const blockTop = block.y;
-      const blockBottom = block.y + (block.height / 5); // Convert percentage-based height
-
-      // Check collision with more precise detection
-      if (
-        playerRight > blockLeft &&
-        playerLeft < blockRight &&
-        playerBottom > blockTop &&
-        playerTop < blockBottom &&
-        block.x < 25 // Only check collision when block is near the player
-      ) {
-        setBlocksClearedThisRound(true);
-        
-        if (block.isCorrect) {
-          setScore(prev => prev + 1);
-          setGameSpeed(prev => prev + 0.3);
-          setTimeout(() => {
-            generateQuestion();
-          }, 1000);
-        } else {
-          setGameState('lost');
-        }
-      }
-    });
-  }, [formulaBlocks, playerY, gameState, blocksClearedThisRound, generateQuestion]);
-
   const handleRestart = () => {
     setGameState('playing');
     setPlayerY(50);
-    setBlocksClearedThisRound(false);
-    generateQuestion();
-    setGameSpeed(prev => prev + 0.2);
-  };
-
-  const handleNewGame = () => {
-    setGameState('playing');
-    setPlayerY(50);
     setScore(0);
-    setGameSpeed(1.5);
-    setBlocksClearedThisRound(false);
-    generateQuestion();
+    setLives(3);
+    setGameSpeed(2);
+    setNextBlockId(1);
   };
-
-  if (gameState === 'won') {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-white bg-gradient-to-br from-green-400 via-blue-500 to-purple-600">
-        <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 max-w-md w-full text-center">
-          <div className="text-6xl mb-4">🎉</div>
-          <h2 className="text-3xl font-bold mb-4">Correct!</h2>
-          <p className="text-xl mb-6">Score: {score}</p>
-          <div className="space-y-4">
-            <button
-              onClick={handleRestart}
-              className="w-full bg-gradient-to-r from-green-400 to-blue-500 hover:from-green-500 hover:to-blue-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-200"
-            >
-              Next Level
-            </button>
-            <button
-              onClick={onBack}
-              className="w-full bg-white/20 hover:bg-white/30 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-200"
-            >
-              Back to Menu
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   if (gameState === 'lost') {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-white bg-gradient-to-br from-red-400 via-purple-500 to-pink-600">
+      <div className="min-h-screen flex flex-col items-center justify-center p-6 text-white bg-gradient-to-br from-red-500 via-purple-600 to-pink-600">
         <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-8 max-w-md w-full text-center">
           <div className="text-6xl mb-4">💥</div>
           <h2 className="text-3xl font-bold mb-4">Game Over!</h2>
-          <p className="text-xl mb-6">Final Score: {score}</p>
+          <div className="mb-6">
+            <p className="text-xl mb-2">Final Score: {score}</p>
+            <div className="flex justify-center space-x-1">
+              {[...Array(5)].map((_, i) => (
+                <Star key={i} className={`w-6 h-6 ${i < score ? 'text-yellow-400 fill-current' : 'text-gray-400'}`} />
+              ))}
+            </div>
+          </div>
           <div className="space-y-4">
             <button
-              onClick={handleNewGame}
+              onClick={handleRestart}
               className="w-full bg-gradient-to-r from-green-400 to-blue-500 hover:from-green-500 hover:to-blue-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg transform hover:scale-105 transition-all duration-200 flex items-center justify-center space-x-2"
             >
               <RotateCcw className="w-5 h-5" />
@@ -223,36 +210,59 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-blue-400 to-blue-600">
-      {/* Sky and Ground */}
+    <div className="min-h-screen relative overflow-hidden bg-gradient-to-b from-sky-400 via-blue-500 to-blue-600">
+      {/* Animated Sky Background */}
       <div className="absolute inset-0">
-        <div className="h-3/4 bg-gradient-to-b from-blue-300 to-blue-500"></div>
-        <div className="h-1/4 bg-gradient-to-b from-green-400 to-green-600"></div>
+        <div className="h-3/4 bg-gradient-to-b from-sky-300 to-blue-500 relative">
+          {/* Animated Clouds */}
+          <div className="absolute top-8 left-10 w-20 h-10 bg-white/40 rounded-full animate-pulse"></div>
+          <div className="absolute top-16 right-16 w-24 h-12 bg-white/30 rounded-full animate-pulse delay-300"></div>
+          <div className="absolute top-24 left-1/3 w-16 h-8 bg-white/35 rounded-full animate-pulse delay-700"></div>
+          <div className="absolute top-32 right-1/4 w-18 h-9 bg-white/25 rounded-full animate-pulse delay-1000"></div>
+        </div>
+        <div className="h-1/4 bg-gradient-to-b from-green-400 to-green-600 relative">
+          {/* Ground decorations */}
+          <div className="absolute bottom-0 left-0 right-0 h-2 bg-green-700"></div>
+        </div>
       </div>
 
-      {/* Clouds */}
-      <div className="absolute top-10 left-10 w-16 h-8 bg-white/30 rounded-full"></div>
-      <div className="absolute top-20 right-20 w-20 h-10 bg-white/20 rounded-full"></div>
-      <div className="absolute top-32 left-1/3 w-12 h-6 bg-white/25 rounded-full"></div>
-
-      {/* Header */}
-      <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-10">
+      {/* Header UI */}
+      <div className="absolute top-4 left-4 right-4 flex justify-between items-center z-20">
         <button
           onClick={onBack}
-          className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-xl transition-all duration-200 text-white"
+          className="flex items-center space-x-2 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-xl transition-all duration-200 text-white backdrop-blur-sm"
         >
           <ArrowLeft className="w-5 h-5" />
           <span>Back</span>
         </button>
-        <div className="text-white font-bold text-lg">Score: {score}</div>
+        
+        <div className="flex items-center space-x-6">
+          <div className="flex items-center space-x-2 bg-white/20 px-4 py-2 rounded-xl backdrop-blur-sm">
+            <Zap className="w-5 h-5 text-yellow-400" />
+            <span className="text-white font-bold">{score}</span>
+          </div>
+          
+          <div className="flex items-center space-x-1">
+            {[...Array(3)].map((_, i) => (
+              <div
+                key={i}
+                className={`w-6 h-6 rounded-full ${
+                  i < lives ? 'bg-red-500' : 'bg-gray-500/50'
+                } shadow-lg`}
+              >
+                {i < lives && <span className="block w-full h-full text-center text-white text-xs leading-6">❤️</span>}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* Question */}
+      {/* Question Display */}
       {currentQuestion && (
-        <div className="absolute top-16 left-4 right-4 z-10">
-          <div className="bg-white/10 backdrop-blur-lg rounded-2xl p-4 mx-auto max-w-lg">
+        <div className="absolute top-20 left-4 right-4 z-10">
+          <div className="bg-white/15 backdrop-blur-lg rounded-2xl p-4 mx-auto max-w-2xl border border-white/20">
             <div className="text-white text-center">
-              <div className="text-sm font-medium mb-2">{currentQuestion.category.toUpperCase()}</div>
+              <div className="text-sm font-medium mb-2 text-yellow-300">{currentQuestion.category.toUpperCase()}</div>
               <div className="text-lg font-bold">{currentQuestion.question}</div>
             </div>
           </div>
@@ -260,47 +270,58 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
       )}
 
       {/* Game Area */}
-      <div className="absolute inset-0 mt-32">
-        {/* Player */}
+      <div className="absolute inset-0 mt-36">
+        {/* Player Rocket */}
         <div
-          className="absolute w-12 h-12 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full shadow-lg flex items-center justify-center text-2xl transition-all duration-100 z-20"
+          className="absolute w-16 h-16 transition-all duration-100 z-30 flex items-center justify-center"
           style={{
-            left: '10%',
+            left: '8%',
             top: `${playerY}%`,
             transform: 'translateY(-50%)'
           }}
         >
-          🚀
+          <div className="w-12 h-12 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full shadow-2xl flex items-center justify-center text-2xl animate-pulse">
+            🚀
+          </div>
+          {/* Rocket trail */}
+          <div className="absolute -right-4 w-8 h-2 bg-gradient-to-r from-orange-400 to-transparent rounded-full opacity-70"></div>
         </div>
 
         {/* Formula Blocks */}
         {formulaBlocks.map(block => (
           <div
             key={block.id}
-            className={`absolute p-3 rounded-xl shadow-lg text-xs font-mono text-white transition-all duration-100 ${
+            className={`absolute p-3 rounded-2xl shadow-2xl text-sm font-mono text-white transition-all duration-75 border-2 ${
               block.isCorrect 
-                ? 'bg-gradient-to-r from-green-500 to-emerald-500' 
-                : 'bg-gradient-to-r from-red-500 to-pink-500'
+                ? 'bg-gradient-to-r from-green-500 to-emerald-600 border-green-300 shadow-green-400/50' 
+                : 'bg-gradient-to-r from-red-500 to-pink-600 border-red-300 shadow-red-400/50'
             }`}
             style={{
               left: `${block.x}%`,
               top: `${block.y}%`,
               transform: 'translateY(-50%)',
-              maxWidth: '300px',
-              minWidth: '180px'
+              maxWidth: '280px',
+              minWidth: '200px'
             }}
           >
-            <div className="break-words text-center">
+            <div className="text-center font-bold break-words">
               {block.formula}
             </div>
+            {block.isCorrect && (
+              <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-400 rounded-full flex items-center justify-center text-xs">
+                ✓
+              </div>
+            )}
           </div>
         ))}
       </div>
 
       {/* Instructions */}
-      <div className="absolute bottom-4 left-4 right-4 text-center text-white">
-        <div className="bg-white/10 backdrop-blur-lg rounded-xl p-3">
-          <div className="text-sm">Use ↑↓ arrow keys to move and collect the correct formula!</div>
+      <div className="absolute bottom-6 left-4 right-4 text-center text-white z-10">
+        <div className="bg-white/15 backdrop-blur-lg rounded-2xl p-4 border border-white/20">
+          <div className="text-sm font-medium">
+            Use ↑↓ arrow keys or WASD to move • Collect GREEN formulas • Avoid RED ones!
+          </div>
         </div>
       </div>
     </div>
