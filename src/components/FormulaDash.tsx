@@ -23,7 +23,7 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
   const [formulaBlocks, setFormulaBlocks] = useState<FormulaBlock[]>([]);
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(3);
-  const [gameSpeed, setGameSpeed] = useState(2);
+  const [gameSpeed, setGameSpeed] = useState(0.8); // Much slower initial speed
   const [nextBlockId, setNextBlockId] = useState(1);
 
   // Generate new question and blocks
@@ -34,7 +34,7 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
     const blocks: FormulaBlock[] = [];
     const correctAnswer = randomFormula.options[randomFormula.correct];
     
-    // Add correct answer block at random height
+    // Add correct answer block at random height with more spacing
     blocks.push({
       id: nextBlockId,
       formula: correctAnswer,
@@ -44,14 +44,14 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
       speed: gameSpeed
     });
 
-    // Add 2 wrong answer blocks with proper spacing
+    // Add 2 wrong answer blocks with much more spacing
     const wrongAnswers = randomFormula.options.filter((_, index) => index !== randomFormula.correct);
     wrongAnswers.slice(0, 2).forEach((answer, index) => {
       blocks.push({
         id: nextBlockId + index + 1,
         formula: answer,
         isCorrect: false,
-        x: 120 + (index + 1) * 50 + Math.random() * 30,
+        x: 120 + (index + 1) * 80 + Math.random() * 40, // More spacing between blocks
         y: 20 + Math.random() * 60,
         speed: gameSpeed
       });
@@ -68,7 +68,7 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
     }
   }, [generateQuestion, gameState]);
 
-  // Game loop - move blocks and handle collisions
+  // Game loop - move blocks and handle collisions (much slower)
   useEffect(() => {
     if (gameState !== 'playing') return;
 
@@ -112,8 +112,8 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
         if (collision) {
           if (correctHit) {
             setScore(prev => prev + 1);
-            setGameSpeed(prev => prev + 0.3);
-            setTimeout(() => generateQuestion(), 500);
+            setGameSpeed(prev => prev + 0.1); // Much smaller speed increase
+            setTimeout(() => generateQuestion(), 1000); // Longer pause after correct answer
             return [];
           } else {
             setLives(prev => {
@@ -123,7 +123,7 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
               }
               return newLives;
             });
-            setTimeout(() => generateQuestion(), 1000);
+            setTimeout(() => generateQuestion(), 1500); // Longer pause after wrong answer
             return [];
           }
         }
@@ -131,12 +131,12 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
         // Remove blocks that are off screen and generate new ones
         const visibleBlocks = updatedBlocks.filter(block => block.x > -30);
         if (visibleBlocks.length === 0) {
-          setTimeout(() => generateQuestion(), 500);
+          setTimeout(() => generateQuestion(), 1000); // Longer pause between questions
         }
 
         return visibleBlocks;
       });
-    }, 16);
+    }, 32); // Slower game loop (was 16ms, now 32ms)
 
     return () => clearInterval(gameLoop);
   }, [gameState, playerY, gameSpeed, generateQuestion]);
@@ -151,12 +151,12 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
         case 'ArrowUp':
         case 'w':
         case 'W':
-          setPlayerY(prev => Math.max(10, prev - 5));
+          setPlayerY(prev => Math.max(10, prev - 3)); // Slower movement
           break;
         case 'ArrowDown':
         case 's':
         case 'S':
-          setPlayerY(prev => Math.min(85, prev + 5));
+          setPlayerY(prev => Math.min(85, prev + 3)); // Slower movement
           break;
       }
     };
@@ -170,7 +170,7 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
     setPlayerY(50);
     setScore(0);
     setLives(3);
-    setGameSpeed(2);
+    setGameSpeed(0.8); // Reset to slower initial speed
     setNextBlockId(1);
   };
 
@@ -257,23 +257,24 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
         </div>
       </div>
 
-      {/* Question Display */}
+      {/* Question Display - Made larger and more prominent */}
       {currentQuestion && (
         <div className="absolute top-20 left-4 right-4 z-10">
-          <div className="bg-white/15 backdrop-blur-lg rounded-2xl p-4 mx-auto max-w-2xl border border-white/20">
+          <div className="bg-white/20 backdrop-blur-lg rounded-2xl p-6 mx-auto max-w-3xl border border-white/30 shadow-2xl">
             <div className="text-white text-center">
-              <div className="text-sm font-medium mb-2 text-yellow-300">{currentQuestion.category.toUpperCase()}</div>
-              <div className="text-lg font-bold">{currentQuestion.question}</div>
+              <div className="text-sm font-medium mb-3 text-yellow-300 uppercase tracking-wide">{currentQuestion.category}</div>
+              <div className="text-xl md:text-2xl font-bold leading-relaxed">{currentQuestion.question}</div>
+              <div className="text-sm mt-3 text-blue-100 opacity-75">Use ↑↓ arrows to collect the correct formula!</div>
             </div>
           </div>
         </div>
       )}
 
       {/* Game Area */}
-      <div className="absolute inset-0 mt-36">
+      <div className="absolute inset-0 mt-44">
         {/* Player Rocket */}
         <div
-          className="absolute w-16 h-16 transition-all duration-100 z-30 flex items-center justify-center"
+          className="absolute w-16 h-16 transition-all duration-200 z-30 flex items-center justify-center"
           style={{
             left: '8%',
             top: `${playerY}%`,
@@ -287,11 +288,11 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
           <div className="absolute -right-4 w-8 h-2 bg-gradient-to-r from-orange-400 to-transparent rounded-full opacity-70"></div>
         </div>
 
-        {/* Formula Blocks */}
+        {/* Formula Blocks - Made larger for better readability */}
         {formulaBlocks.map(block => (
           <div
             key={block.id}
-            className={`absolute p-3 rounded-2xl shadow-2xl text-sm font-mono text-white transition-all duration-75 border-2 ${
+            className={`absolute p-4 rounded-2xl shadow-2xl text-sm font-mono text-white transition-all duration-100 border-2 ${
               block.isCorrect 
                 ? 'bg-gradient-to-r from-green-500 to-emerald-600 border-green-300 shadow-green-400/50' 
                 : 'bg-gradient-to-r from-red-500 to-pink-600 border-red-300 shadow-red-400/50'
@@ -300,15 +301,15 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
               left: `${block.x}%`,
               top: `${block.y}%`,
               transform: 'translateY(-50%)',
-              maxWidth: '280px',
-              minWidth: '200px'
+              maxWidth: '320px',
+              minWidth: '240px'
             }}
           >
-            <div className="text-center font-bold break-words">
+            <div className="text-center font-bold break-words text-base leading-relaxed">
               {block.formula}
             </div>
             {block.isCorrect && (
-              <div className="absolute -top-1 -right-1 w-6 h-6 bg-yellow-400 rounded-full flex items-center justify-center text-xs">
+              <div className="absolute -top-2 -right-2 w-8 h-8 bg-yellow-400 rounded-full flex items-center justify-center text-sm font-bold">
                 ✓
               </div>
             )}
@@ -321,6 +322,9 @@ const FormulaDash = ({ onBack }: FormulaDashProps) => {
         <div className="bg-white/15 backdrop-blur-lg rounded-2xl p-4 border border-white/20">
           <div className="text-sm font-medium">
             Use ↑↓ arrow keys or WASD to move • Collect GREEN formulas • Avoid RED ones!
+          </div>
+          <div className="text-xs mt-1 opacity-75">
+            Take your time to read the question and find the correct answer!
           </div>
         </div>
       </div>
